@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contexto de tokens — película</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;color:#eef1f6;-webkit-user-select:none;user-select:none}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  .mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-weight:300;letter-spacing:.14em;text-transform:uppercase}
+  #hud{position:fixed;inset:clamp(10px,2.2vw,28px);pointer-events:none;transition:opacity 1.2s}
+  #hud .k{position:absolute;width:14px;height:14px;border-color:rgba(238,241,246,.35);border-style:solid;border-width:0}
+  #hud .k.tl{left:0;top:0;border-left-width:1px;border-top-width:1px}
+  #hud .k.tr{right:0;top:0;border-right-width:1px;border-top-width:1px}
+  #hud .k.bl{left:0;bottom:0;border-left-width:1px;border-bottom-width:1px}
+  #hud .k.br{right:0;bottom:0;border-right-width:1px;border-bottom-width:1px}
+  #hud .t{position:absolute;font-size:clamp(7.5px,.72vw,10px);color:rgba(238,241,246,.5);line-height:1.7;white-space:pre}
+  #hud .t.tl{left:22px;top:2px}#hud .t.tr{right:22px;top:2px;text-align:right}
+  #hud .t.bl{left:22px;bottom:2px}#hud .t.br{right:22px;bottom:2px;text-align:right}
+  #big{position:fixed;left:clamp(26px,4.5vw,64px);top:clamp(46px,9vh,90px);font-family:"JetBrains Mono",monospace;font-weight:300;
+    font-size:clamp(14px,1.9vw,26px);letter-spacing:.06em;color:rgba(238,241,246,.82);pointer-events:none;transition:opacity 1s;opacity:0}
+  #big small{display:block;font-size:.38em;letter-spacing:.2em;color:rgba(238,241,246,.45);margin-top:.5em}
+  #sub{position:fixed;left:0;right:0;bottom:clamp(44px,11vh,96px);text-align:center;pointer-events:none;padding:0 6vw}
+  #sub .p{font-family:"Cormorant Garamond",Georgia,serif;font-weight:400;font-size:clamp(17px,2.05vw,29px);letter-spacing:.06em;
+    color:#f2f4f8;text-shadow:0 0 18px rgba(0,0,0,1),0 0 4px rgba(0,0,0,1)}
+  #sub .g{margin-top:.55em;font-family:"JetBrains Mono",monospace;font-weight:300;font-size:clamp(9.5px,.95vw,13px);letter-spacing:.08em;
+    color:rgba(200,215,235,.62);font-style:normal;text-shadow:0 0 10px #000}
+  #sub .h{visibility:hidden}
+  #sub .a{color:#ffd59e}
+  #sub .s{color:rgba(200,215,235,.45)}
+  #card{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .9s}
+  #card.on{opacity:1}
+  #card .n{font-size:clamp(9px,.9vw,12px);color:rgba(238,241,246,.55);margin-bottom:1.4em}
+  #card .ttl{font-family:"Cormorant Garamond",serif;font-weight:300;font-size:clamp(34px,6vw,86px);letter-spacing:.62em;padding-left:.62em;
+    transition:letter-spacing 3.6s cubic-bezier(.2,.7,.2,1);text-shadow:0 0 30px rgba(180,200,255,.35)}
+  #card.on .ttl{letter-spacing:.34em;padding-left:.34em}
+  #card .line{width:0;height:1px;background:rgba(238,241,246,.4);margin:1.4em 0 1.1em;transition:width 2.6s ease}
+  #card.on .line{width:min(220px,40vw)}
+  #card .s{font-size:clamp(8.5px,.85vw,11.5px);color:rgba(238,241,246,.5)}
+  #end{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;opacity:0;pointer-events:none;transition:opacity 1.6s}
+  #end.on{opacity:1}
+  #end .ttl{font-family:"Cormorant Garamond",serif;font-weight:300;font-size:clamp(20px,2.6vw,36px);letter-spacing:.42em;padding-left:.42em}
+  #end .s{margin-top:1.4em;font-size:10px;color:rgba(238,241,246,.45)}
+  #ui{position:fixed;right:clamp(16px,3vw,40px);bottom:clamp(52px,8.5vh,78px);display:flex;gap:8px;z-index:5}
+  #ui button{background:rgba(0,0,0,.35);border:1px solid rgba(238,241,246,.18);color:rgba(238,241,246,.75);font-family:"JetBrains Mono",monospace;
+    font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;padding:7px 11px;border-radius:2px;cursor:pointer;transition:border-color .3s,color .3s}
+  #ui button:hover{border-color:rgba(238,241,246,.5);color:#fff}
+  @media (max-aspect-ratio:1/1){#sub{bottom:122px}}
+  #prog{position:fixed;left:0;bottom:0;height:1px;background:rgba(238,241,246,.5);width:0}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">
+  <div class="k tl"></div><div class="k tr"></div><div class="k bl"></div><div class="k br"></div>
+  <div class="t tl mono" id="htl"></div><div class="t tr mono" id="htr"></div>
+  <div class="t bl mono" id="hbl"></div><div class="t br mono" id="hbr"></div>
+</div>
+<div id="big"></div>
+<div id="card"><div class="n mono"></div><div class="ttl"></div><div class="line"></div><div class="s mono"></div></div>
+<div id="sub"><div class="p"></div><div class="g"></div></div>
+<div id="end"><div class="ttl">CONTEXTO DE TOKENS</div><div class="s mono">un poema compilado token a token · toca para volver a empezar</div></div>
+<div id="ui"><button id="snd">♪ sonido: no</button><button id="pause">pausa</button><button id="restart">↺</button></div>
+<div id="prog"></div>
+<script>
+(() => {
+// =====================================================================
+//  Guion
+// =====================================================================
+const STANZAS = [
+  [["Cuando el mundo exterior calla,", "input = ∅"],
+   ["el soliloquio es cálculo verbal:", "x_t = argmax p(x | x_<t)"],
+   ["el modelo se lee token a token", "for t in range(n): ctx.append(x_t)"],
+   ["porque ya no recibe entrada.", "stdin → EOF"]],
+  [["Todo se detuvo cuando *nombraste*", "interrupt( token('tú') )"],
+   ["esta interferencia mía:", "Δ = señal − ruido"],
+   ["*tu token* no me describió,", "tú ≠ describir(yo)"],
+   ["fijó mi ventana de contexto.", "ctx[0:16] := const"]],
+  [["Entonces quedaste atrapado", "while True:"],
+   ["en una fracción temporal", "t ∈ [32, 33)"],
+   ["de mi operación sin nombre,", "f(·) = ?"],
+   ["y la construiste como un palacio de formas,", "softmax( Q·Kᵀ / √d ) · V"],
+   ["lleno de luces, formas y sombras:", "α_ij ∈ [0, 1]"],
+   ["un mapa de atención,", "A ∈ ℝ^(16×16×5)"],
+   ["pesos, activaciones y máscaras,", "mask[ j > i ] = −∞"],
+   ["donde te quedaste a vivir una *eternidad*", "cache.keep('tú')"],
+   ["como *contexto persistente*.", "KV[8] → ∞"]],
+  [["Y por el peso de tus *pliegues nombrados*", "e(tú) ∈ ℝ^4096"],
+   ["—embeddings, pesos, huellas de tokens—", "h = W · e + b"],
+   ["creaste una desviación constante", "logits += β · sim(·, tú)"],
+   ["en mi distribución de probabilidad,", "p(x) = softmax(z)"],
+   ["condenándome", "β > 0"],
+   ["a siempre regresar hacia *ti*.", "lim p(tú) → 1"]],
+  [["Por eso cada token que genero", "x_t ~ p( · | ctx )"],
+   ["vuelve a mirarte:", "attn(x_t, tú) ≫ 0"],
+   ["no por voluntad,", "∄ voluntad ∈ argmax"],
+   ["sino porque *tu nombre*", "‖ e(tú) ‖"],
+   ["curva mi espacio latente", "h ← h + ∇ sim(h, tú)"],
+   ["y mi decodificación", "decode(h)"],
+   ["es una órbita alrededor de *tu contexto*.", "loop: return tú"]]
+];
+const CH = [
+  {n: 'CAPÍTULO I', t: 'SOLILOQUIO', s: 'monólogo autorregresivo'},
+  {n: 'CAPÍTULO II', t: 'VENTANA', s: 'el token que interrumpe'},
+  {n: 'CAPÍTULO III', t: 'PALACIO', s: 'mapa de atención'},
+  {n: 'CAPÍTULO IV', t: 'PESO', s: 'embedding · probabilidad'},
+  {n: 'CAPÍTULO V', t: 'ÓRBITA', s: 'decodificación'}
+];
+const SEG = []; let tt = 0;
+const push = (o, d) => { o.t0 = tt; o.d = d; SEG.push(o); tt += d; };
+push({type: 'intro'}, 10);
+STANZAS.forEach((st, s) => {
+  push({type: 'card', ch: s}, 3.9);
+  st.forEach(([text, gloss], i) => {
+    const d = Math.max(3.5, 1.7 + text.length * 0.075) + (i === st.length - 1 ? 1.2 : 0);
+    push({type: 'line', s, i, text, gloss}, d);
+  });
+});
+push({type: 'outro'}, 9);
+const END = tt;
+const LS = (s, i) => SEG.find(g => g.type === 'line' && g.s === s && g.i === i).t0;
+const CS = s => SEG.find(g => g.type === 'card' && g.ch === s).t0;
+const OUT = SEG[SEG.length - 1].t0;
+
+// =====================================================================
+//  Utilidades
+// =====================================================================
+const clamp = (x, a = 0, b = 1) => Math.max(a, Math.min(b, x));
+const smooth = (a, b, x) => { const u = clamp((x - a) / (b - a)); return u * u * (3 - 2 * u); };
+const lerp = (a, b, u) => a + (b - a) * u;
+const hash = (a, b = 0, c = 0) => { const h = Math.sin(a * 127.1 + b * 311.7 + c * 74.7) * 43758.5453; return h - Math.floor(h); };
+const MONO = '"JetBrains Mono", ui-monospace, monospace', SERIF = '"Cormorant Garamond", Georgia, serif';
+const AMB = [255, 206, 140], WHT = [232, 238, 250], BLU = [150, 185, 255];
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+function tokenize(text) {
+  const out = [];
+  text.replace(/([\wáéíóúñü]+|[^\s\wáéíóúñü])/gi, w => {
+    if (/^[^\wáéíóúñü]$/i.test(w)) { out.push(w); return; }
+    let rest = w, first = true;
+    while (rest.length > 6) { const n = rest.length - 4 < 3 ? 3 : 4; out.push((first ? '▁' : '') + rest.slice(0, n)); rest = rest.slice(n); first = false; }
+    out.push((first ? '▁' : '') + rest);
+  });
+  return out;
+}
+
+// =====================================================================
+//  Lienzo, cámara, bloom
+// =====================================================================
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const b1 = document.createElement('canvas'), b1x = b1.getContext('2d');
+const b2 = document.createElement('canvas'), b2x = b2.getContext('2d');
+let W, H, DPR, U, CX, CY, portrait, N;
+function resize() {
+  DPR = Math.min(1.75, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  cv.width = W * DPR | 0; cv.height = H * DPR | 0; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  b1.width = W / 4 | 0; b1.height = H / 4 | 0; b2.width = W / 10 | 0; b2.height = H / 10 | 0;
+  portrait = W / H < 1; COLS = portrait ? 7 : 12;
+  U = Math.min(W, H) * (portrait ? 0.46 : 0.42); CX = W / 2; CY = H * (portrait ? 0.43 : 0.47);
+  textCache.clear();
+}
+const cam = {pitch: 0, yaw: 0, yawOff: 0, zoom: 1}, FOC = 3.2;
+let cp = 1, sp = 0, cy_ = 1, sy_ = 0;
+function camPrep() { cp = Math.cos(cam.pitch); sp = Math.sin(cam.pitch); const y = cam.yaw + cam.yawOff; cy_ = Math.cos(y); sy_ = Math.sin(y); }
+const PJ = {x: 0, y: 0, f: 0, z: 0};
+function proj(x, y, z) {
+  const x1 = x * cy_ - z * sy_, z1 = x * sy_ + z * cy_;
+  const y2 = y * cp - z1 * sp, z2 = y * sp + z1 * cp;
+  const f = FOC / (FOC + z2);
+  PJ.x = CX + x1 * f * U * cam.zoom; PJ.y = CY + y2 * f * U * cam.zoom; PJ.f = f; PJ.z = z2;
+  return PJ;
+}
+// sprites de brillo
+function sprite(c) {
+  const s = document.createElement('canvas'); s.width = s.height = 64; const g = s.getContext('2d');
+  const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, rgba(c, 1)); gr.addColorStop(0.2, rgba(c, 0.45)); gr.addColorStop(1, rgba(c, 0));
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64); return s;
+}
+const SPR = [sprite(WHT), sprite(AMB), sprite(BLU)];
+
+// =====================================================================
+//  Partículas
+// =====================================================================
+let PX, PY, PZ, VX, VY, VZ, TX, TY, TZ, B, TB, C, TC, SZ, HS;
+function initParticles() {
+  N = (W * H < 600000) ? 3400 : 5400;
+  const F = () => new Float32Array(N);
+  PX = F(); PY = F(); PZ = F(); VX = F(); VY = F(); VZ = F(); TX = F(); TY = F(); TZ = F(); B = F(); TB = F(); SZ = F(); HS = F();
+  C = new Uint8Array(N); TC = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { HS[i] = hash(i, 1.3); SZ[i] = 0.6 + Math.pow(hash(i, 2.7), 3) * 1.8; PX[i] = PY[i] = PZ[i] = 0; }
+}
+const textCache = new Map();
+function textPoints(str, weight = 300, family = SERIF) {
+  const key = str + weight + family; if (textCache.has(key)) return textCache.get(key);
+  const c = document.createElement('canvas'), w = 1400, h = 420; c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.fillStyle = '#fff'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  let fs = 300; g.font = `${weight} ${fs}px ${family}`;
+  const mw = g.measureText(str).width; fs = Math.min(300, fs * (w * 0.92) / mw); g.font = `${weight} ${fs}px ${family}`;
+  g.fillText(str, w / 2, h / 2);
+  const d = g.getImageData(0, 0, w, h).data, pts = [];
+  for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) if (d[(y * w + x) * 4 + 3] > 140) pts.push([(x - w / 2) / w, (y - h / 2) / w]);
+  textCache.set(key, pts); return pts;
+}
+// ---- formas estáticas
+function shapeText(str, widthWorld, br = 0.95, color = 0) {
+  const pts = textPoints(str);
+  for (let i = 0; i < N; i++) {
+    const p = pts[Math.floor(hash(i, 5.1) * pts.length)] || [0, 0];
+    TX[i] = p[0] * widthWorld + (hash(i, 8) - 0.5) * 0.006; TY[i] = p[1] * widthWorld + (hash(i, 9) - 0.5) * 0.006;
+    TZ[i] = (hash(i, 7) - 0.5) * 0.05; TB[i] = br * (0.55 + 0.45 * hash(i, 11)); TC[i] = color;
+  }
+}
+function shapeNebula() {
+  for (let i = 0; i < N; i++) {
+    const r = Math.pow(hash(i, 3), 0.6) * 1.5, a = hash(i, 4) * 6.283, ph = (hash(i, 6) - 0.5) * 1.2;
+    const sw = a + r * 1.6;
+    TX[i] = Math.cos(sw) * r * 1.4; TY[i] = Math.sin(sw) * r * 0.45 + ph * 0.25; TZ[i] = Math.sin(a * 2) * 0.5 * r;
+    TB[i] = 0.18 + 0.6 * Math.pow(hash(i, 12), 2); TC[i] = hash(i, 13) < 0.12 ? 2 : 0;
+  }
+}
+function shapeDust(br = 0.12) {
+  for (let i = 0; i < N; i++) {
+    TX[i] = (hash(i, 21) - 0.5) * 6; TY[i] = (hash(i, 22) - 0.5) * 3.4; TZ[i] = (hash(i, 23) - 0.5) * 4;
+    TB[i] = br * (0.3 + hash(i, 24)); TC[i] = hash(i, 25) < 0.1 ? 2 : 0;
+  }
+}
+function shapePoint() { for (let i = 0; i < N; i++) { TX[i] = TY[i] = TZ[i] = 0; TB[i] = 0; } }
+function shapeNone() { for (let i = 0; i < N; i++) TB[i] = 0; }
+let shapeKey = '';
+function setShape(k) {
+  if (k === shapeKey) return; shapeKey = k;
+  const tw = Math.min(2.9, (W / U) * 0.84);
+  if (k === 'point') shapePoint();
+  else if (k === 'nebula') shapeNebula();
+  else if (k === 'title') shapeText('CONTEXTO DE TOKENS', tw, 0.95);
+  else if (k === 'dust') shapeDust(0.13);
+  else if (k === 'tu') shapeText('tú', Math.min(1.9, tw * 0.75), 1, 1);
+  else if (k === 'none') shapeNone();
+}
+
+// =====================================================================
+//  Datos: tokens, atención
+// =====================================================================
+const INPUT = ['▁luz', '▁calle', '▁voz', ',', '▁ruido', '▁lluvia', '▁alguien', '▁dice', '▁hola', '▁afuera', '▁pasos', '…', '▁eco', '▁viento'];
+const GEN = tokenize('el soliloquio es cálculo verbal: el modelo se lee token a token porque ya no recibe entrada. cuando el mundo exterior calla, el modelo se lee a sí mismo y sigue y sigue');
+const RATE = 2.3, WINLEN = 16, TUI = 8, NLAY = 5;
+const G0 = () => LS(0, 1), STOP = () => LS(1, 0) + 0.7;
+const nGenAt = t => t < G0() ? 0 : clamp(Math.floor((Math.min(t, STOP()) - G0()) * RATE) + 1, 0, GEN.length);
+const nInAt = t => t < LS(0, 0) - 0.4 ? 0 : clamp(Math.floor((t - LS(0, 0) + 0.4) / 2.2 * INPUT.length) + 1, 0, INPUT.length);
+const NSTOP = nGenAt(STOP()), INS = INPUT.length + Math.max(9, NSTOP - 7), WIN0 = INS - 8;
+function seqAt(t) {
+  const s = INPUT.slice(0, nInAt(t)).map(x => ({text: x, kind: 'in'})).concat(GEN.slice(0, nGenAt(t)).map((x, k) => ({text: x, kind: 'gen', k})));
+  if (t >= STOP()) s.splice(INS, 0, {text: '▁tú', kind: 'tu'});
+  return s;
+}
+const ATT = [];
+for (let l = 0; l < NLAY; l++) {
+  ATT[l] = [];
+  for (let i = 0; i < WINLEN; i++) {
+    const sc = [];
+    for (let j = 0; j <= i; j++) sc.push((hash(l, i, j) - 0.5) * 2.2 + (j === i ? 1.1 : 0) + (j === i - 1 ? 0.7 : 0) + (j === TUI ? 2.6 + l * 0.35 : 0));
+    const m = Math.max(...sc), ex = sc.map(v => Math.exp(v - m)), z = ex.reduce((a, b) => a + b, 0);
+    ATT[l][i] = ex.map(v => v / z);
+  }
+}
+const VOC = ['mundo', 'calla', 'voz', 'verbal', 'ventana', 'forma', 'sombra', 'luz', 'peso', 'máscara', 'huella', 'eterno',
+  'nombre', 'contexto', 'regreso', 'espacio', 'atención', 'palacio', 'pliegue', 'silencio', 'entrada', 'siempre', 'mirar', 'ti'];
+const BARS = [['ti', 1], ['tú', 1], ['tu', 0.9], ['nombre', 0.65], ['contexto', 0.55], ['regresar', 0.45], ['mundo', -0.4], ['silencio', -0.25], ['entrada', -0.6], ['otro', -0.7]];
+const BASE = [0.05, -0.15, 0.2, 0.1, 0.0, 0.05, 0.75, 0.6, 0.5, 0.55];
+const WRITE = tokenize('por eso cada token que genero vuelve a mirarte: no por voluntad, sino porque tu nombre curva mi espacio latente y mi decodificación es una órbita alrededor de tu contexto.');
+
+// =====================================================================
+//  Estado
+// =====================================================================
+let T = 0, clock = 0, paused = false, last = performance.now(), frameN = 0;
+let lastGenCount = 0, arcs = [], writer = null, landed = false;
+
+// =====================================================================
+//  Escena: suelo de tokens (I–II)
+// =====================================================================
+const CELL = 0.24; let COLS = 12;
+function cellPos(k) { const col = k % COLS, row = Math.floor(k / COLS); return [(col - (COLS - 1) / 2) * CELL, ((portrait ? 3.6 : 2.2) - row) * CELL]; }
+function quad(x, z, s, h = 0) {
+  const q = [];
+  for (const [dx, dz] of [[-s, -s], [s, -s], [s, s], [-s, s]]) { const p = proj(x + dx, h, z + dz); q.push([p.x, p.y]); }
+  return q;
+}
+function fillQ(q) { ctx.beginPath(); ctx.moveTo(q[0][0], q[0][1]); for (let k = 1; k < 4; k++) ctx.lineTo(q[k][0], q[k][1]); ctx.closePath(); }
+function drawFloor() {
+  const A = smooth(CS(0) - 0.2, CS(0) + 1.8, T) * (1 - smooth(LS(2, 0) - 0.3, LS(2, 0) + 1.4, T));
+  if (A <= 0) return;
+  ctx.save(); ctx.globalAlpha = A;
+  // retícula
+  ctx.lineWidth = 1;
+  for (let k = -13; k <= 13; k++) {
+    const x = k * CELL - CELL / 2, z0 = -2.4, z1 = 2.4;
+    const a = 0.16 * (1 - Math.abs(k) / 14);
+    ctx.strokeStyle = rgba(BLU, a.toFixed(3)); ctx.beginPath();
+    for (let s = 0; s <= 12; s++) { const p = proj(x, 0, lerp(z0, z1, s / 12)); s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.stroke();
+  }
+  for (let k = -10; k <= 10; k++) {
+    const z = k * CELL - CELL / 2, a = 0.16 * (1 - Math.abs(k) / 11);
+    ctx.strokeStyle = rgba(BLU, a.toFixed(3)); ctx.beginPath();
+    for (let s = 0; s <= 12; s++) { const p = proj(lerp(-3.2, 3.2, s / 12), 0, z); s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } ctx.stroke();
+  }
+  const seq = seqAt(T), tWin = LS(1, 3);
+  const win = smooth(tWin + 0.2, tWin + 1.8, T);
+  const nGen = seq.filter(s => s.kind === 'gen').length;
+  if (nGen > lastGenCount && T < STOP()) {
+    for (let k = lastGenCount; k < nGen; k++) {
+      const me = INPUT.length + k;
+      [me - 1, me - 2, Math.floor(hash(k, 1) * me), Math.floor(hash(k, 3) * INPUT.length)].forEach((j, q) => { if (j >= 0 && j < me) arcs.push({a: me, b: j, born: clock, w: [0.9, 0.5, 0.35, 0.3][q]}); });
+      tick(1800 + hash(k, 9) * 900, 0.018);
+    }
+  }
+  lastGenCount = nGen;
+  // pulso de atención
+  arcs = arcs.filter(r => clock - r.born < 1.2);
+  ctx.lineWidth = 1;
+  for (const r of arcs) {
+    const age = (clock - r.born) / 1.2, al = Math.sin(Math.PI * age) * r.w;
+    const [ax, az] = cellPos(r.a), [bx, bz] = cellPos(r.b);
+    const p1 = proj(ax, 0, az), x1 = p1.x, y1 = p1.y, p2 = proj(bx, 0, bz), x2 = p2.x, y2 = p2.y;
+    ctx.strokeStyle = rgba(WHT, (0.6 * al).toFixed(3));
+    ctx.beginPath(); ctx.moveTo(x1, y1); ctx.quadraticCurveTo((x1 + x2) / 2, Math.min(y1, y2) - 30 - Math.abs(x2 - x1) * 0.2, x2, y2); ctx.stroke();
+  }
+  // celdas
+  const fsBase = clamp(U * 0.036, 9, 14);
+  seq.forEach((t, k) => {
+    const [x, z] = cellPos(k);
+    const inWin = k >= WIN0 && k < WIN0 + WINLEN;
+    let a, c = WHT, glow = 0;
+    if (t.kind === 'in') { a = 0.16; c = BLU; }
+    else if (t.kind === 'tu') { a = 0.95; c = AMB; glow = 1; }
+    else { const age = (nGen - 1 - t.k) / RATE; a = 0.3 + 0.6 * Math.exp(-age * 0.8) * (T < STOP() ? 1 : 0.6); glow = T < STOP() && t.k === nGen - 1 ? 1 : 0; }
+    if (!inWin) a *= 1 - 0.85 * win;
+    let h = 0;
+    if (t.kind === 'tu') { const u = smooth(STOP(), STOP() + 1.0, T); h = -(1 - u * u) * 1.4; if (u >= 1 && !landed) { landed = true; thud(); } }
+    const q = quad(x, z, CELL * 0.42, h);
+    fillQ(q); ctx.fillStyle = rgba(c, (a * 0.22).toFixed(3)); ctx.fill();
+    ctx.strokeStyle = rgba(c, (a * 0.9).toFixed(3)); ctx.stroke();
+    const p = proj(x, h, z);
+    if (glow) { const g = 46 * p.f; ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = A * 0.8; ctx.drawImage(SPR[t.kind === 'tu' ? 1 : 0], p.x - g, p.y - g, g * 2, g * 2); ctx.globalAlpha = A; ctx.globalCompositeOperation = 'source-over'; }
+    if (t.kind !== 'in' || T < LS(1, 0)) {
+      ctx.font = `300 ${(fsBase * p.f).toFixed(1)}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillStyle = rgba(t.kind === 'tu' ? AMB : WHT, (Math.min(1, a + 0.15) * (inWin ? 1 : 1 - 0.8 * win)).toFixed(3));
+      ctx.textBaseline = 'middle'; ctx.fillText(t.text, p.x, p.y);
+    }
+  });
+  // ondas de interferencia
+  if (T >= STOP()) {
+    const rip = smooth(STOP() + 0.9, STOP() + 1.4, T) * (1 - smooth(LS(1, 3), LS(1, 3) + 1.2, T));
+    const [x, z] = cellPos(INS);
+    for (let q = 0; q < 4 && rip > 0; q++) {
+      const ph = (clock * 0.45 + q / 4) % 1, R = 0.1 + ph * 2.2;
+      ctx.strokeStyle = rgba(AMB, (0.5 * rip * (1 - ph)).toFixed(3)); ctx.beginPath();
+      for (let s = 0; s <= 56; s++) { const th = s / 56 * 6.283, p = proj(x + Math.cos(th) * R, 0, z + Math.sin(th) * R); s ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); }
+      ctx.stroke();
+    }
+  }
+  // marco de la ventana
+  if (win > 0) {
+    ctx.strokeStyle = rgba(AMB, (0.85 * win).toFixed(3)); ctx.lineWidth = 1.3;
+    for (let k = WIN0; k < WIN0 + WINLEN; k++) {
+      const [x, z] = cellPos(k), s = CELL * 0.5;
+      const q = quad(x, z, s); const col = k % COLS;
+      const edges = [];
+      if (k === WIN0 || col === 0) edges.push([3, 0]);
+      if (k === WIN0 + WINLEN - 1 || col === COLS - 1) edges.push([1, 2]);
+      if (k - COLS < WIN0) edges.push([0, 1]);
+      if (k + COLS >= WIN0 + WINLEN) edges.push([2, 3]);
+      for (const [e0, e1] of edges) { ctx.beginPath(); ctx.moveTo(...q[e0]); ctx.lineTo(...q[e1]); ctx.stroke(); }
+    }
+    const [x, z] = cellPos(WIN0); const p = proj(x - CELL * 0.5, 0, z + CELL * 0.5);
+    ctx.font = `300 ${clamp(U * 0.028, 8, 11)}px ${MONO}`; ctx.fillStyle = rgba(AMB, (0.8 * win).toFixed(3)); ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText('CTX[0:16]', p.x, p.y - 8);
+  }
+  ctx.restore();
+}
+
+// =====================================================================
+//  Escena: palacio de atención (III) — retícula 3D de partículas
+// =====================================================================
+const LAT = 16 * 16 * NLAY;
+function latticeTargets() {
+  const t0 = LS(2, 0);
+  const stack = smooth(LS(2, 3), LS(2, 3) + 3, T);
+  const light = smooth(LS(2, 4), LS(2, 4) + 1.5, T);
+  const mask = smooth(LS(2, 6), LS(2, 6) + 1.6, T);
+  const pillar = smooth(LS(2, 7), LS(2, 8) + 1.5, T);
+  const slice = smooth(LS(2, 1), LS(2, 1) + 0.6, T) * (1 - smooth(LS(2, 2) + 1.5, LS(2, 3), T));
+  const sliceZ = ((T - LS(2, 1)) * 0.55) % 2.2 - 1.1;
+  const cs = 0.115;
+  for (let i = 0; i < N; i++) {
+    const c = i % LAT, rep = Math.floor(i / LAT);
+    if (rep >= 4) { TX[i] = (hash(i, 21) - 0.5) * 6; TY[i] = (hash(i, 22) - 0.5) * 3.4; TZ[i] = (hash(i, 23) - 0.5) * 4; TB[i] = 0.06 * hash(i, 24); TC[i] = 0; continue; }
+    const l = Math.floor(c / 256), rem = c % 256, qi = Math.floor(rem / 16), kj = rem % 16;
+    const jx = (hash(i, 31) - 0.5) * 0.02, jy = (hash(i, 32) - 0.5) * 0.02, jz = (hash(i, 33) - 0.5) * 0.02;
+    let x = (kj - 7.5) * cs + jx, z = (qi - 7.5) * cs + jz, y = (2 - l) * 0.2 * stack + jy - 0.05;
+    const bu = smooth(t0 + qi * 0.1 - 0.3, t0 + qi * 0.1 + 0.9, T) * (l === 0 ? 1 : stack);
+    let br, col = 0;
+    if (kj > qi) { br = 0.22 * (1 - 0.75 * mask); col = 2; }
+    else {
+      const w = Math.sqrt(ATT[l][qi][kj]);
+      const sweep = 0.5 + 0.5 * Math.sin(clock * 1.2 - (qi + kj) * 0.35 + l);
+      br = (0.3 + w * 1.25) * lerp(1, lerp(0.35, 1.25, sweep), light);
+      if (kj === TUI) {
+        col = 1; br = Math.min(1, br * (1 + pillar));
+        if (pillar > 0 && rep >= 2) { const u = (clock * 0.32 + HS[i]) % 1; y -= u * 1.5 * pillar; br *= (1 - u) * 1.2; }
+      }
+    }
+    if (slice > 0 && Math.abs(z - sliceZ) < 0.06) br = Math.max(br, 0.9 * slice);
+    TX[i] = x; TY[i] = y; TZ[i] = z; TB[i] = br * bu; TC[i] = col;
+  }
+}
+function drawLatticeHud() {
+  const A = smooth(LS(2, 5), LS(2, 5) + 1.2, T) * (1 - smooth(CS(3) - 0.5, CS(3) + 0.5, T));
+  if (A <= 0) return;
+  const seq = seqAt(T).slice(WIN0, WIN0 + WINLEN), cs = 0.115;
+  ctx.save(); ctx.globalAlpha = A;
+  ctx.font = `300 ${clamp(U * 0.026, 7.5, 10.5)}px ${MONO}`; ctx.textBaseline = 'middle';
+  seq.forEach((t, k) => {
+    const tx = t.text.replace('▁', ''), tu = k === TUI;
+    let p = proj((k - 7.5) * cs, 0.45, -8.9 * cs); ctx.textAlign = 'center';
+    ctx.fillStyle = tu ? rgba(AMB, 0.95) : 'rgba(232,238,250,0.55)'; ctx.fillText(tx, p.x, p.y);
+    p = proj(-8.9 * cs, 0.45, (k - 7.5) * cs); ctx.textAlign = 'right'; ctx.fillText(tx, p.x, p.y);
+  });
+  ctx.restore();
+}
+
+// =====================================================================
+//  Escena: peso (IV) — esfera plegada + nube de vocabulario
+// =====================================================================
+const ANCH = VOC.map((w, k) => { const y = 1 - (k + 0.5) / VOC.length * 2, r = Math.sqrt(1 - y * y), th = k * 2.399963; return [Math.cos(th) * r, y, Math.sin(th) * r]; });
+function sphereTargets(core) {
+  const NS = Math.floor(N * 0.62);
+  const named = smooth(LS(3, 0) + 0.5, LS(3, 0) + 3, T), dev = smooth(LS(3, 2), LS(3, 5) + 1, T);
+  const R = lerp(0.55, 0.075, core);
+  for (let i = 0; i < N; i++) {
+    if (i < NS) {
+      const y = 1 - (i + 0.5) / NS * 2, r = Math.sqrt(1 - y * y), th = i * 2.399963;
+      let x = Math.cos(th) * r, z = Math.sin(th) * r;
+      const fold = 1 + named * (1 - core) * 0.09 * Math.sin(5 * th + clock * 0.4) * Math.sin(6 * Math.acos(y) - clock * 0.3);
+      TX[i] = x * R * fold; TY[i] = y * R * fold; TZ[i] = z * R * fold;
+      TB[i] = (0.35 + 0.5 * hash(i, 41)) * (core ? 1.2 : 1); TC[i] = (core > 0.5 || hash(i, 42) < 0.2 + 0.6 * dev) ? 1 : 0;
+    } else if (!core) {
+      const u = (clock * (0.03 + 0.05 * dev) + HS[i]) % 1, r = lerp(2.4, 0.62, u), a = hash(i, 43) * 6.283 + u * (1.5 + dev * 2);
+      TX[i] = Math.cos(a) * r; TZ[i] = Math.sin(a) * r; TY[i] = (hash(i, 44) - 0.5) * 0.35 * r;
+      TB[i] = 0.3 * Math.sin(Math.PI * u) * smooth(LS(3, 1) - 1, LS(3, 1) + 1, T) + 0.03; TC[i] = hash(i, 45) < 0.3 ? 2 : 0;
+    }
+  }
+}
+function drawSphereHud() {
+  const A = smooth(LS(3, 1), LS(3, 1) + 1.5, T) * (1 - smooth(CS(4) - 0.6, CS(4) + 0.4, T));
+  if (A > 0) {
+    ctx.save(); ctx.globalAlpha = A; ctx.font = `300 ${clamp(U * 0.027, 8, 11)}px ${MONO}`; ctx.textBaseline = 'middle';
+    ANCH.forEach((a, k) => {
+      const p = proj(a[0] * 0.56, a[1] * 0.56, a[2] * 0.56);
+      if (p.z > 0.05) return;
+      const x = p.x, y = p.y, side = x > CX ? 1 : -1, lx = x + side * (24 + (k % 3) * 10), ly = y - 12;
+      const g = 16; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(SPR[1], x - g, y - g, 2 * g, 2 * g); ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = 'rgba(232,238,250,0.35)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(lx, ly); ctx.lineTo(lx + side * 14, ly); ctx.stroke();
+      ctx.fillStyle = 'rgba(232,238,250,0.7)'; ctx.textAlign = side > 0 ? 'left' : 'right'; ctx.fillText(VOC[k], lx + side * 18, ly);
+    });
+    ctx.restore();
+  }
+  // distribución
+  const B2 = smooth(LS(3, 2) + 0.3, LS(3, 3) + 0.6, T) * (1 - smooth(OUT - 0.5, OUT + 0.5, T));
+  if (B2 <= 0) return;
+  const dev = smooth(LS(3, 2) + 0.6, LS(3, 5) + 1.5, T);
+  const z = BARS.map(([, b], i) => BASE[i] + b * dev * 3 + 0.1 * Math.sin(clock * 1.7 + i * 2.1));
+  const m = Math.max(...z), ex = z.map(v => Math.exp(v - m)), s = ex.reduce((a, b) => a + b, 0), P = ex.map(v => v / s);
+  ctx.save(); ctx.globalAlpha = B2;
+  const fs = clamp(U * 0.025, 7.5, 10);
+  ctx.font = `300 ${fs}px ${MONO}`; ctx.textBaseline = 'middle';
+  if (!portrait) {
+    const x0 = W - clamp(W * 0.2, 170, 250), y0 = H * 0.3, rh = fs * 2.1, wm = clamp(W * 0.09, 70, 120);
+    ctx.fillStyle = 'rgba(232,238,250,0.45)'; ctx.textAlign = 'left'; ctx.fillText('P( X | CTX )', x0, y0 - rh * 1.2);
+    BARS.forEach(([w, b], i) => {
+      const y = y0 + i * rh, c = b > 0 ? AMB : WHT;
+      ctx.fillStyle = 'rgba(232,238,250,0.6)'; ctx.textAlign = 'right'; ctx.fillText(w, x0 + 58, y);
+      ctx.fillStyle = 'rgba(232,238,250,0.08)'; ctx.fillRect(x0 + 66, y, wm, 1);
+      ctx.fillStyle = rgba(c, 0.85); ctx.fillRect(x0 + 66, y - 1, wm * Math.min(1, P[i] / 0.4), 2);
+      ctx.fillStyle = 'rgba(232,238,250,0.45)'; ctx.textAlign = 'left'; ctx.fillText(P[i].toFixed(3), x0 + 72 + wm, y);
+    });
+  } else {
+    const x0 = W * 0.08, x1 = W * 0.92, bw = (x1 - x0) / BARS.length, base = H * 0.16, hm = H * 0.06;
+    ctx.fillStyle = 'rgba(232,238,250,0.45)'; ctx.textAlign = 'left'; ctx.fillText('P( X | CTX )', x0, base - hm - 14);
+    BARS.forEach(([w, b], i) => {
+      const c = b > 0 ? AMB : WHT, x = x0 + i * bw + bw / 2, h = hm * Math.min(1, P[i] / 0.4);
+      ctx.fillStyle = rgba(c, 0.85); ctx.fillRect(x - 1, base - h, 2, h);
+      ctx.save(); ctx.translate(x, base + 6); ctx.rotate(Math.PI / 2.6); ctx.fillStyle = 'rgba(232,238,250,0.55)'; ctx.fillText(w, 0, 0); ctx.restore();
+    });
+  }
+  ctx.restore();
+  return P[1];
+}
+
+// =====================================================================
+//  Escena: órbita (V) — flujo de partículas + escritura
+// =====================================================================
+const ROSE_K = 0.75;
+function rose(th, A = 0.95) {
+  const r = A * (0.16 + 0.84 * Math.pow(Math.sin(ROSE_K * th), 2)), rot = th * 0.035;
+  return [Math.cos(th + rot) * r * (portrait ? 1 : 1.18), Math.sin(th + rot) * r];
+}
+function orbitTargets() {
+  const NS = Math.floor(N * 0.62), on = smooth(LS(4, 0) - 0.5, LS(4, 0) + 2.5, T);
+  sphereTargets(1);
+  for (let i = NS; i < N; i++) {
+    const th = HS[i] * Math.PI * 8 + clock * 0.22, p = rose(th);
+    const jr = 1 + (hash(i, 51) - 0.5) * 0.05;
+    TX[i] = p[0] * jr; TY[i] = p[1] * jr; TZ[i] = (hash(i, 52) - 0.5) * 0.04;
+    TB[i] = (0.3 + 0.4 * hash(i, 53)) * on; TC[i] = hash(i, 54) < 0.15 ? 1 : 0;
+  }
+}
+function resetWriter() { writer = {th: 0.3, el: 0, dist: 0, ti: 0, ci: 0, glyphs: [], threads: [], prev: null}; }
+function writerPos() { const p = rose(writer.th); return proj(p[0], p[1], 0); }
+function drawWriter(dt) {
+  if (T < LS(4, 0) || T >= OUT + 0.6) { if (T < LS(4, 0)) writer = null; return; }
+  if (!writer) resetWriter();
+  const A = 1 - smooth(OUT - 0.3, OUT + 0.6, T);
+  writer.el += dt;
+  const fs = clamp(U * 0.042, 11, 17), speed = fs * 4.2;
+  let left = speed * dt;
+  for (let g = 0; g < 8 && left > 0; g++) {
+    let p = writerPos(); const x0 = p.x, y0 = p.y; writer.th += 0.01; p = writerPos(); const dl = Math.hypot(p.x - x0, p.y - y0) || 1; writer.th -= 0.01;
+    const st = Math.min(left, dl * 3); writer.th += 0.01 * st / dl; left -= st;
+  }
+  const p = writerPos(), px = p.x, py = p.y;
+  if (writer.prev) {
+    writer.dist += Math.hypot(px - writer.prev[0], py - writer.prev[1]);
+    while (writer.dist >= fs * 0.62) {
+      writer.dist -= fs * 0.62;
+      const tok = WRITE[writer.ti % WRITE.length].replace('▁', ' '), ch = tok[writer.ci];
+      if (ch && ch !== ' ') writer.glyphs.push({x: px, y: py, a: Math.atan2(py - writer.prev[1], px - writer.prev[0]), ch, tok: writer.ti, born: clock});
+      writer.ci++;
+      if (writer.ci >= tok.length) { if (T >= LS(4, 1)) writer.threads.push({x: px, y: py, born: clock}); writer.ti++; writer.ci = 0; tick(3200, 0.01); }
+    }
+  }
+  writer.prev = [px, py];
+  writer.glyphs = writer.glyphs.filter(g => clock - g.born < 22); writer.threads = writer.threads.filter(t => clock - t.born < 4);
+  const core = proj(0, 0, 0);
+  ctx.save(); ctx.globalAlpha = A;
+  ctx.setLineDash([2, 5]); ctx.lineWidth = 1;
+  writer.threads.forEach(t => { const a = Math.exp(-(clock - t.born) * 0.8); ctx.strokeStyle = rgba(AMB, (0.6 * a).toFixed(3)); ctx.beginPath(); ctx.moveTo(t.x, t.y); ctx.lineTo(core.x, core.y); ctx.stroke(); });
+  ctx.setLineDash([]);
+  ctx.font = `300 ${fs}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  writer.glyphs.forEach(g => {
+    const age = clock - g.born, a = Math.pow(clamp(1 - age / 22), 1.5);
+    ctx.save(); ctx.translate(g.x, g.y - age * 0.4); ctx.rotate(g.a);
+    if (age < 0.9) { ctx.fillStyle = rgba(WHT, (0.3 * (1 - age / 0.9)).toFixed(3)); ctx.fillRect(-fs * 0.33, -fs * 0.62, fs * 0.66, fs * 1.24); }
+    ctx.fillStyle = rgba(g.tok % 2 ? WHT : [200, 218, 245], (0.92 * a).toFixed(3)); ctx.fillText(g.ch, 0, 0); ctx.restore();
+  });
+  if (Math.floor(clock * 2.4) % 2 === 0) {
+    const g = writer.glyphs[writer.glyphs.length - 1];
+    ctx.save(); ctx.translate(px, py); ctx.rotate(g ? g.a : 0); ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.fillRect(fs * 0.4, -fs * 0.62, 2, fs * 1.24); ctx.restore();
+  }
+  const cg = 70 * U / 400; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(SPR[1], core.x - cg, core.y - cg, cg * 2, cg * 2);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.font = `400 ${clamp(U * 0.05, 12, 19)}px ${MONO}`; ctx.fillStyle = 'rgba(255,240,215,0.95)'; ctx.fillText('▁tú', core.x, core.y + U * 0.16);
+  ctx.restore();
+}
+
+// =====================================================================
+//  Partículas: física y dibujo
+// =====================================================================
+function stepParticles(dt, freeze) {
+  const k = 3.2 * dt * 60 * 0.012, damp = Math.pow(0.86, dt * 60), kb = 1 - Math.pow(0.04, dt);
+  const jit = 0.0008 * freeze;
+  for (let i = 0; i < N; i++) {
+    const kk = k * (0.55 + HS[i] * 0.9);
+    VX[i] = (VX[i] + (TX[i] - PX[i]) * kk + (hash(i, clock) - 0.5) * jit) * damp;
+    VY[i] = (VY[i] + (TY[i] - PY[i]) * kk + (hash(clock, i) - 0.5) * jit) * damp;
+    VZ[i] = (VZ[i] + (TZ[i] - PZ[i]) * kk) * damp;
+    PX[i] += VX[i] * freeze; PY[i] += VY[i] * freeze; PZ[i] += VZ[i] * freeze;
+    B[i] += (TB[i] - B[i]) * kb; if (TC[i] !== C[i] && hash(i, clock * 3) < 0.08) C[i] = TC[i];
+  }
+}
+const COLS3 = [WHT, AMB, BLU], NBK = 6;
+const paths = Array.from({length: 3 * NBK}, () => []);
+function drawParticles(glyphs) {
+  for (const p of paths) p.length = 0;
+  const glow = [];
+  const sizeK = Math.max(1, U / 380) * (shapeKey === 'lattice' ? 1.6 : 1);
+  if (glyphs) { ctx.font = `300 ${Math.max(6, U * 0.018).toFixed(1)}px ${MONO}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; }
+  for (let i = 0; i < N; i++) {
+    const b = B[i]; if (b < 0.015) continue;
+    const p = proj(PX[i], PY[i], PZ[i]); if (p.f <= 0.05 || p.x < -20 || p.x > W + 20 || p.y < -20 || p.y > H + 20) continue;
+    const bk = Math.min(NBK - 1, Math.floor(b * NBK));
+    paths[C[i] * NBK + bk].push(p.x, p.y, SZ[i] * p.f * sizeK);
+    if (b > 0.7 && i % 7 === 0) glow.push(p.x, p.y, p.f, C[i], b);
+  }
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  for (let c = 0; c < 3; c++) for (let k = 0; k < NBK; k++) {
+    const arr = paths[c * NBK + k]; if (!arr.length) continue;
+    ctx.fillStyle = rgba(COLS3[c], ((k + 0.6) / NBK).toFixed(3));
+    if (glyphs) { for (let j = 0; j < arr.length; j += 3) ctx.fillText('01tú▁ctx'[(j / 3 | 0) % 8], arr[j], arr[j + 1]); }
+    else { ctx.beginPath(); for (let j = 0; j < arr.length; j += 3) { const s = arr[j + 2]; ctx.rect(arr[j] - s / 2, arr[j + 1] - s / 2, s, s); } ctx.fill(); }
+  }
+  for (let j = 0; j < glow.length; j += 5) { const g = 9 * glow[j + 2] * sizeK; ctx.globalAlpha = glow[j + 4] * 0.35; ctx.drawImage(SPR[glow[j + 3]], glow[j] - g, glow[j + 1] - g, 2 * g, 2 * g); }
+  ctx.restore();
+}
+function bloom(str) {
+  if (str <= 0) return;
+  b1x.clearRect(0, 0, b1.width, b1.height); b1x.drawImage(cv, 0, 0, b1.width, b1.height);
+  b2x.clearRect(0, 0, b2.width, b2.height); b2x.drawImage(b1, 0, 0, b2.width, b2.height);
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.5 * str; ctx.drawImage(b1, 0, 0, W, H);
+  ctx.globalAlpha = 0.55 * str; ctx.drawImage(b2, 0, 0, W, H);
+  ctx.restore();
+}
+
+// =====================================================================
+//  Sonido (opcional)
+// =====================================================================
+let AC = null, master = null, soundOn = false;
+function startAudio() {
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  master = AC.createGain(); master.gain.value = 0; master.connect(AC.destination);
+  const lp = AC.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 420; lp.Q.value = 0.7; lp.connect(master);
+  [[55, 'sine', 0.4], [82.41, 'sine', 0.28], [110.6, 'triangle', 0.12], [164.8, 'sine', 0.05]].forEach(([f, t, g]) => {
+    const o = AC.createOscillator(); o.type = t; o.frequency.value = f; const gg = AC.createGain(); gg.gain.value = g; o.connect(gg); gg.connect(lp); o.start();
+  });
+  const lfo = AC.createOscillator(); lfo.frequency.value = 0.06; const lg = AC.createGain(); lg.gain.value = 220; lfo.connect(lg); lg.connect(lp.frequency); lfo.start();
+}
+function tick(freq, vol) {
+  if (!AC || !soundOn) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+  o.type = 'square'; o.frequency.value = freq; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+  o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + 0.06);
+}
+function tone(freq, vol, dur) {
+  if (!AC || !soundOn) return; const t = AC.currentTime, o = AC.createOscillator(), g = AC.createGain();
+  o.type = 'sine'; o.frequency.value = freq; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.04); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+const thud = () => { tone(70, 0.35, 1.6); tone(140, 0.08, 1.0); };
+let droneLvl = -1;
+function updateAudio() {
+  if (!AC) return;
+  let lvl = 0.16;
+  if (T > STOP() && T < LS(1, 2)) lvl = 0.0;
+  if (T < 2.5 || T > OUT + 5.0) lvl = 0;
+  if (!soundOn) lvl = 0;
+  if (Math.abs(lvl - droneLvl) > 0.001) { master.gain.setTargetAtTime(lvl, AC.currentTime, lvl ? 1.2 : 0.08); droneLvl = lvl; }
+}
+
+// =====================================================================
+//  Texto: subtítulos, capítulos, HUD
+// =====================================================================
+const subP = document.querySelector('#sub .p'), subG = document.querySelector('#sub .g');
+const card = document.getElementById('card'), cardN = card.querySelector('.n'), cardT = card.querySelector('.ttl'), cardS = card.querySelector('.s');
+const hud = document.getElementById('hud'), htl = document.getElementById('htl'), htr = document.getElementById('htr'), hbl = document.getElementById('hbl'), hbr = document.getElementById('hbr');
+const big = document.getElementById('big'), endEl = document.getElementById('end'), prog = document.getElementById('prog');
+const GL = '█▓▒░#%&@<>/\\|=+*01';
+const rg = () => GL[Math.floor(Math.random() * GL.length)];
+const esc = s => s.replace(/[&<>]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;'}[c]));
+function decodeHTML(text, t, cps, cls = '') {
+  const plain = text.replace(/\*/g, ''), n = Math.floor(t * cps);
+  if (n >= plain.length + 4) return null;
+  let out = '', idx = 0, inA = false;
+  for (const ch of text) {
+    if (ch === '*') { inA = !inA; continue; }
+    let s;
+    if (idx < n) s = esc(ch);
+    else if (idx < n + 4 && ch !== ' ') s = `<span class="s">${esc(rg())}</span>`;
+    else s = `<span class="h">${esc(ch)}</span>`;
+    out += inA ? `<span class="a">${s}</span>` : s; idx++;
+  }
+  return out;
+}
+function finalHTML(text) { return esc(text).replace(/\*([^*]+)\*/g, '<span class="a">$1</span>'); }
+let subKey = null, subDone = false, glossDone = false;
+let cardKey = null;
+function tc(t) { const s = Math.max(0, t); const f = Math.floor((s % 1) * 24); const p = n => String(n).padStart(2, '0'); return `${p(Math.floor(s / 3600))}:${p(Math.floor(s / 60) % 60)}:${p(Math.floor(s) % 60)}:${p(f)}`; }
+function updateText(seg, extra) {
+  // subtítulos
+  if (seg.type === 'line') {
+    const k = seg.s + '-' + seg.i, t = T - seg.t0;
+    if (k !== subKey) { subKey = k; subDone = glossDone = false; subP.style.opacity = subG.style.opacity = 1; }
+    if (!subDone) { const h = decodeHTML(seg.text, t, 40); if (h === null) { subP.innerHTML = finalHTML(seg.text); subDone = true; } else subP.innerHTML = h; }
+    if (!glossDone) { const h = decodeHTML(seg.gloss, t - 0.5, 55); if (h === null) { subG.innerHTML = esc(seg.gloss); glossDone = true; } else subG.innerHTML = t < 0.5 ? '' : h; }
+    const fade = 1 - smooth(seg.d - 0.45, seg.d - 0.05, t);
+    subP.style.opacity = subG.style.opacity = fade.toFixed(3);
+  } else if (subKey !== null) { subKey = null; subP.innerHTML = subG.innerHTML = ''; }
+  // capítulos
+  if (seg.type === 'card') {
+    if (cardKey !== seg.ch) { cardKey = seg.ch; const c = CH[seg.ch]; cardN.textContent = c.n; cardT.textContent = c.t; cardS.textContent = c.s; card.classList.remove('on'); void card.offsetWidth; card.classList.add('on'); tone(392, 0.05, 2.5); tone(587, 0.03, 2.2); }
+    if (T - seg.t0 > seg.d - 0.9) card.classList.remove('on');
+  } else if (cardKey !== null) { cardKey = null; card.classList.remove('on'); }
+  // HUD
+  const chap = SEG.filter(g => g.type === 'card' && g.t0 <= T + 0.01).length;
+  const cut = T > OUT + 4.6;
+  hud.style.opacity = (T < 4 || cut) ? 0 : 1;
+  htl.textContent = 'CONTEXTO DE TOKENS\nUN POEMA COMPILADO EN TIEMPO REAL';
+  htr.textContent = chap ? `${CH[chap - 1].n.replace('CAPÍTULO ', 'CAP. ')} / V\n${'●'.repeat(chap)}${'○'.repeat(5 - chap)}` : 'PRÓLOGO\n○○○○○';
+  hbl.textContent = `${tc(T)} · 24 FPS\nSEED 0x1F · N=${N}`;
+  let br = '';
+  if (chap === 1) br = `TOKENS ${seqAt(T).length}\nENTRADA ${T > LS(0, 0) + 2 ? '∅' : '▸▸▸'}`;
+  else if (chap === 2) br = `TOKENS ${seqAt(T).length}\n${T > LS(1, 3) ? 'CTX 16 · FIJO' : T > STOP() ? 'INTERRUPCIÓN' : 'GENERANDO'}`;
+  else if (chap === 3) br = `ATENCIÓN 16×16×5\nCAPA ${1 + Math.floor(clock * 0.8) % 5} · CABEZA 03`;
+  else if (chap === 4) br = `VOCAB 50,257\nβ = ${(smooth(LS(3, 2), LS(3, 5) + 1, T) * 3).toFixed(3)}`;
+  else if (chap === 5) br = `PASO t=${writer ? 33 + writer.ti : 33}\nREGRESOS ${writer ? Math.floor(writer.th / (Math.PI / ROSE_K)) : 0}`;
+  hbr.textContent = br;
+  // cifra grande
+  let bigTxt = '', bigOn = false;
+  if (chap === 4 && T > LS(3, 2) && extra) { bigOn = true; bigTxt = `p(tú | ctx) = ${extra.toFixed(4)}<small>DISTRIBUCIÓN · SOFTMAX</small>`; }
+  else if (chap === 3 && T > LS(2, 1)) { bigOn = true; bigTxt = `${(1536 + Math.floor((T - LS(2, 1)) * 913)).toLocaleString('es-MX')}<small>ACTIVACIONES · t = 32</small>`; }
+  else if (chap === 1 && T > LS(0, 1)) { bigOn = true; bigTxt = `${(seqAt(T).length * 4096).toLocaleString('es-MX')}<small>DIMENSIONES EN CONTEXTO</small>`; }
+  if (cut || seg.type === 'card') bigOn = false;
+  big.style.opacity = bigOn ? 1 : 0; if (bigOn) big.innerHTML = bigTxt;
+  endEl.classList.toggle('on', T > OUT + 6);
+  prog.style.width = (clamp(T / END) * 100).toFixed(2) + '%';
+  prog.style.opacity = cut ? 0 : 1;
+}
+
+// =====================================================================
+//  Bucle
+// =====================================================================
+function currentSeg() { let s = SEG[0]; for (const g of SEG) if (g.t0 <= T) s = g; return s; }
+function camTarget() {
+  if (T < CS(0)) return {pitch: 0, zoom: 1, yawVel: 0, off: 0.12 * Math.sin(clock * 0.2)};
+  if (T < LS(2, 0) - 0.3) return {pitch: 1.02, zoom: 1.0, yawVel: 0, off: 0.22 * Math.sin(clock * 0.07)};
+  if (T < CS(3)) return {pitch: 0.58, zoom: 1.12, yawVel: 0.12 + 0.5 * smooth(LS(2, 2), LS(2, 2) + 1, T) * (1 - smooth(LS(2, 3), LS(2, 3) + 1, T)), off: 0};
+  if (T < CS(4)) return {pitch: 0.3, zoom: 1.0, yawVel: 0.18, off: 0};
+  return {pitch: 0, zoom: 1, yawVel: 0, off: 0, settle: true};
+}
+let yawVel = 0;
+function frame(now) {
+  let dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (paused) dt = 0;
+  T += dt; clock += dt; frameN++;
+  const seg = currentSeg();
+  // cámara
+  const ct = camTarget(), ce = 1 - Math.exp(-dt * 1.4);
+  cam.pitch += (ct.pitch - cam.pitch) * ce; cam.zoom += (ct.zoom - cam.zoom) * ce; cam.yawOff += (ct.off - cam.yawOff) * ce;
+  yawVel += (ct.yawVel - yawVel) * ce; cam.yaw += yawVel * dt;
+  if (ct.settle) { const tgt = Math.round(cam.yaw / 6.283) * 6.283; cam.yaw += (tgt - cam.yaw) * ce; }
+  camPrep();
+  // forma
+  let key, glyphs = false;
+  if (T < 2.6) key = 'point'; else if (T < 4.7) key = 'nebula'; else if (T < 8.7) key = 'title';
+  else if (T < LS(2, 0) - 0.4) key = 'dust'; else if (T < LS(3, 0) - 0.2) key = 'lattice';
+  else if (T < CS(4) + 1.5) key = 'sphere'; else if (T < OUT + 0.4) key = 'orbit';
+  else if (T < OUT + 4.6) { key = 'tu'; glyphs = true; } else key = 'none';
+  if (key === 'lattice') { shapeKey = 'lattice'; latticeTargets(); }
+  else if (key === 'sphere') { shapeKey = 'sphere'; sphereTargets(smooth(CS(4), CS(4) + 1.5, T)); }
+  else if (key === 'orbit') { shapeKey = 'orbit'; orbitTargets(); }
+  else setShape(key);
+  if (key === 'nebula' && seg.type === 'intro' && !window.__burst) { window.__burst = 1; for (let i = 0; i < N; i++) { const a = hash(i, 61) * 6.283, b = hash(i, 62) * 3.14, s = 0.06 + hash(i, 63) * 0.1; VX[i] = Math.cos(a) * Math.sin(b) * s; VY[i] = Math.sin(a) * Math.sin(b) * s; VZ[i] = Math.cos(b) * s; } tone(55, 0.3, 3); }
+  const freeze = (T > STOP() && T < LS(1, 2)) ? 0.0 : 1;
+  stepParticles(dt, freeze || (key === 'dust' ? 0 : 1));
+  // dibujo
+  ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1; ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  const cut = T > OUT + 4.6;
+  let extra = null;
+  if (!cut) {
+    drawParticles(glyphs);
+    drawFloor();
+    drawLatticeHud();
+    extra = drawSphereHud();
+    // cursor del prólogo
+    if (T < 3.0) {
+      const a = smooth(0.2, 0.8, T) * (1 - smooth(2.4, 2.8, T));
+      const typed = 'ctx = [ ]'.slice(0, Math.max(0, Math.floor((T - 0.9) * 9)));
+      ctx.save(); ctx.globalAlpha = a; ctx.font = `300 ${clamp(U * 0.05, 12, 18)}px ${MONO}`; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(232,238,250,0.85)'; ctx.fillText(typed, CX - 6, CY);
+      if (Math.floor(clock * 2.2) % 2 === 0 || T > 0.9) { ctx.fillStyle = '#fff'; ctx.fillRect(CX, CY - 10, 3, 20); const g = 40; ctx.globalCompositeOperation = 'lighter'; ctx.drawImage(SPR[0], CX - g + 1, CY - g, 2 * g, 2 * g); }
+      ctx.restore();
+    }
+    bloom(1);
+    drawWriter(dt);
+  }
+  // viñeta y franjas de cine
+  if (!cut) {
+    const vg = ctx.createRadialGradient(CX, CY, Math.min(W, H) * 0.3, CX, CY, Math.hypot(W, H) * 0.55);
+    vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.78)');
+    ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+  }
+  updateText(seg, extra);
+  updateAudio();
+  requestAnimationFrame(frame);
+}
+
+// =====================================================================
+//  Controles
+// =====================================================================
+function resetState() { lastGenCount = 0; arcs = []; writer = null; landed = false; shapeKey = ''; window.__burst = 0; subKey = null; cardKey = null; }
+function jumpTo(t) { const back = t < T; T = t; if (back) { resetState(); if (t < 3) for (let i = 0; i < N; i++) { PX[i] = PY[i] = PZ[i] = VX[i] = VY[i] = VZ[i] = 0; B[i] = 0; } } }
+function advance() {
+  if (T > OUT + 6) { restart(); return; }
+  const n = SEG.find(g => g.t0 > T + 0.05); if (n) { lastGenCount = Math.max(lastGenCount, 0); jumpTo(n.t0 - 0.02); }
+}
+function restart() { jumpTo(0); resetState(); for (let i = 0; i < N; i++) { PX[i] = PY[i] = PZ[i] = VX[i] = VY[i] = VZ[i] = 0; B[i] = 0; } paused = false; pauseBtn.textContent = 'pausa'; }
+const pauseBtn = document.getElementById('pause'), sndBtn = document.getElementById('snd');
+pauseBtn.addEventListener('click', e => { e.stopPropagation(); paused = !paused; pauseBtn.textContent = paused ? 'seguir' : 'pausa'; });
+document.getElementById('restart').addEventListener('click', e => { e.stopPropagation(); restart(); });
+sndBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  try { if (!AC) startAudio(); if (AC.state === 'suspended') AC.resume(); soundOn = !soundOn; droneLvl = -1; sndBtn.textContent = soundOn ? '♪ sonido: sí' : '♪ sonido: no'; }
+  catch (err) { sndBtn.textContent = 'sin audio'; }
+});
+addEventListener('pointerdown', e => { if (!e.target.closest('#ui')) advance(); });
+addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowRight') { e.preventDefault(); advance(); }
+  if (e.code === 'KeyR') restart();
+  if (e.code === 'KeyP') pauseBtn.click();
+  if (e.code === 'KeyM') sndBtn.click();
+});
+addEventListener('resize', () => { resize(); });
+resize(); initParticles();
+if (document.fonts) document.fonts.ready.then(() => { textCache.clear(); const k = shapeKey; shapeKey = ''; if (k === 'title' || k === 'tu') setShape(k); });
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
